@@ -111,6 +111,7 @@ Should be "prom-operator"
 To access th Grafana page locally (localhost:3000)
 ```
 kubectl port-forward -n monitor $(kubectl get pods  --namespace monitor -l app.kubernetes.io/name=grafana) 3000
+```
 
 ## Tear down the cluster
 
