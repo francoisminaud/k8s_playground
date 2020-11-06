@@ -14,7 +14,7 @@ Try:
 gcloud services enable compute.googleapis.com
 ```
 
-### Howto
+## Howto create the cluster
 
 
 1) Spin up the cluster
@@ -72,9 +72,8 @@ my-nginx-service   LoadBalancer   10.147.244.21   35.189.80.117   80:30954/TCP  
 
 
 
-### Prometheus + Grafana
+### Helm + Prometheus + Grafana
 
-## Install Helm
 
 https://www.metricfire.com/blog/monitoring-kubernetes-tutorial-using-grafana-and-prometheus/
 
@@ -112,4 +111,11 @@ Should be "prom-operator"
 To access th Grafana page locally (localhost:3000)
 ```
 kubectl port-forward -n monitor $(kubectl get pods  --namespace monitor -l app.kubernetes.io/name=grafana) 3000
+
+## Tear down the cluster
+
+```
+terraform plan -destroy -out=destroy.out
+terraform apply "destroy.out"
+```
 ```
