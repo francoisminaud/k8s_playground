@@ -1,7 +1,18 @@
 Source for Terraform files: https://github.com/hashicorp/learn-terraform-provision-gke-cluster
 
 TODO: Find a way to automate "Enable Compute Engine API" when creating a new project
+
+Try:
+```
+gcloud services enable container.googleapis.com
+```
+
 TODO: Find a way to automate "Enable Kubernetes Engine API" when creating a new project
+
+Try:
+```
+gcloud services enable compute.googleapis.com
+```
 
 ### Howto
 
