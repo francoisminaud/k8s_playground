@@ -1,0 +1,2 @@
+# Do not commit anything from the build directory
+build/*
