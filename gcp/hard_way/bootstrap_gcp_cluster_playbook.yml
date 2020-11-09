@@ -1,0 +1,141 @@
+---
+- hosts: localhost
+  gather_facts: no
+  vars:
+    region: "europe-west2"
+    zone: "europe-west2-b"
+    project: "terraform-k8s-gke-playground"
+    service_account_file: "build/terraform-k8s-gke-playground-ab25246d1837.json"
+    auth_kind: "serviceaccount"
+    ansible_python_interpreter: "/usr/bin/python3"
+  tasks:
+    - name: "Check if cfssl is installed to /usr/local/bin/"
+      stat:
+        path: "/usr/local/bin/cfssl"
+      register: stat_cfss
+    - name: "Check cfssl version"
+      shell:
+        cmd: "cfssl version | grep Version | cut -d ':' -f 2"
+      register: cfssl_version
+      ignore_errors: true
+    - name: "Check if cfssljson is installed to /usr/local/bin/"
+      stat:
+        path: "/usr/local/bin/cfssljson"
+      register: stat_cfssjson
+    - name: "Check cfssljson version"
+      shell:
+        cmd: "cfssljson -version | grep Version | cut -d ':' -f 2"
+      register: cfssljson_version
+      ignore_errors: true
+#    - name:
+#      debug:
+#        msg: "{{ cfssl_version.stdout }}"
+#      when: st.stat.exists #!= True
+#    - name: "check version > 1.4.1"
+#      debug:
+#        msg: "cfssl_version.stdout is >= than 1.4.1"
+#      when: cfssl_version.stdout is version('1.4.1', '>=')
+    - name: "Install cfssl to /usr/local/bin/ if not installed yet"
+      get_url:
+        url: "https://storage.googleapis.com/kubernetes-the-hard-way/cfssl/1.4.1/linux/cfssl"
+        dest: /usr/local/bin/
+        mode: '0550'
+      become: yes
+      when:
+        - stat_cfss.stat.exists == False
+        - cfssl_version.stdout is version('1.4.1', '<')
+    - name: "Install cfssljson to /usr/local/bin/ if not installed yet"
+      get_url:
+        url: "https://storage.googleapis.com/kubernetes-the-hard-way/cfssl/1.4.1/linux/cfssljson"
+        dest: /usr/local/bin/
+        mode: '0550'
+      become: yes
+      when:
+        - stat_cfssjson.stat.exists == False
+        - cfssljson_version.stdout is version('1.4.1', '<')
+    - name: "Check if kubectl is installed to /usr/local/bin/"
+      stat:
+        path: "/usr/local/bin/kubectl"
+      register: stat_kubectl
+    - name: "Check kubectl version"
+      shell:
+        cmd: "kubectl version --client -o yaml | grep gitVersion | cut -d ':' -f 2 | cut -d '-' -f 1 | cut -d 'v' -f 2"
+      register: kubectl_version
+      ignore_errors: true
+    - name: "Install kubectl to /usr/local/bin/ if not installed yet"
+      get_url:
+        url: "wget https://storage.googleapis.com/kubernetes-release/release/v1.18.6/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/
+        mode: '0550'
+      become: yes
+      when:
+        - stat_kubectl.stat.exists == False
+        - kubectl_version.stdout is version('1.18.6', '<')
+    #Now provision computer resources
+    - name: "GCP Facts"
+      gcp_compute_instance_facts:
+        zone: "{{ zone }}"
+        project: "{{ project }}"
+        auth_kind: "{{ auth_kind }}"
+        service_account_file: "{{ service_account_file }}"
+    - name: "Create the kubernetes-the-hard-way custom VPC network"
+      gcp_compute_network:
+        name: "kubernetes-the-hard-way"
+        service_account_file: "{{ service_account_file }}"
+        auth_kind: "{{ auth_kind }}"
+        project: "{{ project }}"
+        auto_create_subnetworks : false
+        state: present
+      register: kubenetwork
+    - name: "Create the kubernetes subnet in the custom VPC network"
+      gcp_compute_subnetwork :
+        name: "kubernetes"
+        description: "kubernetes-subnet-in-vpc"
+        ip_cidr_range: "10.240.0.0/24"
+        network:  "{{ kubenetwork }}"
+        service_account_file: "{{ service_account_file }}"
+        auth_kind: "{{ auth_kind }}"
+        project: "{{ project }}"
+        region: "{{ region }}"
+        state: present
+    - name: "Create the kubernetes cluster firewall internal rules (tcp, icmp, udp)"
+      gcp_compute_firewall :
+        name: "kubernetes-the-hard-way-allow-internal"
+        allowed:
+        - ip_protocol: tcp
+        - ip_protocol: icmp
+        - ip_protocol: udp
+        source_ranges:
+        - "10.240.0.0/24"
+        - "10.200.0.0/16"
+        project: "{{ project }}"
+        auth_kind: "{{ auth_kind }}"
+        service_account_file: "{{ service_account_file }}"
+        state: present
+    - name: "Create the kubernetes cluster firewall external rules (tcp/22/6443 and icmp)"
+      gcp_compute_firewall :
+        name: "kubernetes-the-hard-way-allow-external"
+        allowed:
+        - ip_protocol: tcp
+          ports:
+          - "22"
+          - "6443"
+        - ip_protocol: icmp
+        source_ranges:
+        - "0.0.0.0/0"
+        project: "{{ project }}"
+        auth_kind: "{{ auth_kind }}"
+        service_account_file: "{{ service_account_file }}"
+        state: present
+    - name: "Create an external IP Address"
+      gcp_compute_address :
+        name: "kubernetes-the-hard-way"
+        region: "{{ region }}"
+        project: "{{ project }}"
+        auth_kind: "{{ auth_kind }}"
+        service_account_file: "{{ service_account_file }}"
+        state: present
+    #gcloud compute networks create kubernetes-the-hard-way --subnet-mode custom
+
+...
+
